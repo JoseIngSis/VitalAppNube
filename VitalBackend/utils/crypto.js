@@ -3,9 +3,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 // 32-byte key for AES-256
-const ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY 
-    ? Buffer.from(process.env.DB_ENCRYPTION_KEY, 'hex') 
-    : crypto.createHash('sha256').update('vitalapp_fallback_secure_key_123!').digest();
+const ENCRYPTION_KEY = Buffer.from(process.env.DB_ENCRYPTION_KEY, 'hex');
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12; // Standard for GCM

@@ -4,6 +4,8 @@ const https = require('https');
 const fs = require('fs');
 const cors = require('cors');
 const dotenv = require('dotenv');
+dotenv.config();
+
 const bcrypt = require('bcryptjs');
 const helmet = require('helmet');
 const speakeasy = require('speakeasy');
@@ -12,16 +14,14 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { pool, testConnection } = require('./db');
 
-const GOOGLE_CLIENT_ID = '691441001085-m589115m0oplaunqp33l74jkpc6j3vf0.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const { OAuth2Client } = require('google-auth-library');
 const { encryptText, decryptText } = require('./utils/crypto');
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 const cookieParser = require('cookie-parser');
 
-dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 // Permite usar cookies Secure detrás de proxies (por ejemplo, Heroku o NGROK)
 app.set('trust proxy', 1);
@@ -56,7 +56,10 @@ app.use((req, res, next) => {
     next();
 });
 app.use(cors({
-    origin: ['http://localhost:8081', 'http://127.0.0.1:8081'],
+    origin: function (origin, callback) {
+        // Permitir cualquier origen (útil para Vercel o herramientas de desarrollo) temporalmente
+        callback(null, true);
+    },
     credentials: true,  // Permite enviar/recibir cookies entre orígenes
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept', 'Authorization', 'X-Signature', 'X-CSRF-Token'],
@@ -169,8 +172,8 @@ app.use('/api', verificarFirma);
 // ============================================
 // SECURITY MIDDLEWARES: JWT & CSRF
 // ============================================
-const JWT_SECRET = process.env.JWT_SECRET || 'jwt_secret_fallback_123';
-const CSRF_SECRET = process.env.CSRF_SECRET || 'csrf_secret_fallback_456';
+const JWT_SECRET = process.env.JWT_SECRET;
+const CSRF_SECRET = process.env.CSRF_SECRET;
 
 const openRoutes = [
     '/api/health',
