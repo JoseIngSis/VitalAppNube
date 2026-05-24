@@ -8,6 +8,7 @@
  * ╚══════════════════════════════════════════════════════════════════╝
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL } from '../constants/config';
 
 // Clave compartida con el backend (debe coincidir con HMAC_SECRET en .env)
 const HMAC_SECRET = 'VitalApp_HMAC_K3y_S3cur@2024!xZ9qPm';
@@ -64,8 +65,9 @@ export async function fetchSeguro(url: string, options: RequestInit = {}): Promi
         try {
             let csrf = await AsyncStorage.getItem('csrfToken');
             if (!csrf) {
-                const baseUrl = url.substring(0, url.indexOf('/api')) + '/api';
-                const csrfRes = await fetch(`${baseUrl}/csrf-token`);
+                const csrfRes = await fetch(`${API_URL}/csrf-token`, {
+                    credentials: 'include'
+                });
                 const csrfData = await csrfRes.json();
                 if (csrfData.success) {
                     csrf = csrfData.csrfToken;

@@ -28,8 +28,8 @@ app.set('trust proxy', 1);
 
 const COOKIE_OPTIONS = {
     httpOnly: true,
-    secure: false,       // false para desarrollo HTTP (cambiar a true en producción HTTPS)
-    sameSite: 'strict',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'strict',
 };
 
 function setSecureCookie(res, name, value, options = {}) {
