@@ -11,7 +11,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '../constants/config';
 
 // Clave compartida con el backend (debe coincidir con HMAC_SECRET en .env)
-const HMAC_SECRET = 'VitalApp_HMAC_K3y_S3cur@2024!xZ9qPm';
+const HMAC_SECRET = process.env.EXPO_PUBLIC_HMAC_SECRET || 'VitalApp_HMAC_K3y_S3cur@2024!xZ9qPm';
 
 // ── Implementación pura de HMAC-SHA256 (sin librerías externas) ──────────────
 // Usa la Web Crypto API disponible en React Native >= 0.74 y todos los navegadores modernos
