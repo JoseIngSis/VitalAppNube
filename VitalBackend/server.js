@@ -186,6 +186,13 @@ const openRoutes = [
     '/api/csrf-token'
 ];
 
+// 0. Endpoint para obtener CSRF Token (Público, antes de cualquier middleware de Auth)
+app.get('/api/csrf-token', (req, res) => {
+    const randomVal = crypto.randomBytes(32).toString('hex');
+    const hash = crypto.createHmac('sha256', CSRF_SECRET).update(randomVal).digest('hex');
+    res.json({ success: true, csrfToken: `${randomVal}.${hash}` });
+});
+
 // 1. Validar JWT en rutas protegidas
 app.use((req, res, next) => {
     if (!req.path.startsWith('/api/') || openRoutes.includes(req.path)) {
@@ -201,12 +208,6 @@ app.use((req, res, next) => {
     });
 });
 
-// 2. Endpoint para obtener CSRF Token
-app.get('/api/csrf-token', (req, res) => {
-    const randomVal = crypto.randomBytes(32).toString('hex');
-    const hash = crypto.createHmac('sha256', CSRF_SECRET).update(randomVal).digest('hex');
-    res.json({ success: true, csrfToken: `${randomVal}.${hash}` });
-});
 
 // 3. Validar CSRF en peticiones que modifican estado (POST, PUT, DELETE)
 app.use((req, res, next) => {

@@ -12,9 +12,11 @@ import { Platform } from 'react-native';
  * ╚══════════════════════════════════════════════════════════════════╝
  */
 const getApiUrl = (): string => {
-  // En producción (Vercel), tomamos la variable de entorno obligatoriamente.
-  // En local, usamos un fallback a localhost si no está definida en .env
-  return process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (envUrl) {
+    return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
+  }
+  return 'http://localhost:5000/api';
 };
 
 export const API_URL = getApiUrl();
