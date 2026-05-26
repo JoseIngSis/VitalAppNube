@@ -312,6 +312,7 @@ export default function LoginScreen() {
     // ── GOOGLE SSO HOOK ───────────────────────────────────────────────────────
     const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
         clientId: '691441001085-m589115m0oplaunqp33l74jkpc6j3vf0.apps.googleusercontent.com',
+        webClientId: '691441001085-m589115m0oplaunqp33l74jkpc6j3vf0.apps.googleusercontent.com',
     });
 
     useEffect(() => {
