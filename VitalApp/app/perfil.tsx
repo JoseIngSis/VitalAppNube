@@ -178,25 +178,44 @@ export default function PerfilScreen() {
         await AsyncStorage.setItem('notifications', valor.toString());
     };
 
-    const handleLogout = () => {
-        Alert.alert(
-            'Cerrar sesión',
-            '¿Desea finalizar la sesión actual?',
-            [
-                { text: 'Cancelar', style: 'cancel' },
-                {
-                    text: 'Confirmar',
-                    style: 'destructive',
-                    onPress: async () => {
-                        await AsyncStorage.removeItem('userId');
-                        await AsyncStorage.removeItem('userSession');
-                        await AsyncStorage.removeItem('jwtToken');
-                        await AsyncStorage.removeItem('csrfToken');
-                        router.replace('/login');
+    const handleLogout = async () => {
+        if (Platform.OS === 'web') {
+            const confirmed = window.confirm('¿Desea finalizar la sesión actual?');
+            if (confirmed) {
+                await AsyncStorage.removeItem('userId');
+                await AsyncStorage.removeItem('userSession');
+                await AsyncStorage.removeItem('jwtToken');
+                await AsyncStorage.removeItem('csrfToken');
+                await AsyncStorage.removeItem('userName');
+                await AsyncStorage.removeItem('userEmail');
+                await AsyncStorage.removeItem('userAge');
+                await AsyncStorage.removeItem('userRol');
+                router.replace('/login');
+            }
+        } else {
+            Alert.alert(
+                'Cerrar sesión',
+                '¿Desea finalizar la sesión actual?',
+                [
+                    { text: 'Cancelar', style: 'cancel' },
+                    {
+                        text: 'Confirmar',
+                        style: 'destructive',
+                        onPress: async () => {
+                            await AsyncStorage.removeItem('userId');
+                            await AsyncStorage.removeItem('userSession');
+                            await AsyncStorage.removeItem('jwtToken');
+                            await AsyncStorage.removeItem('csrfToken');
+                            await AsyncStorage.removeItem('userName');
+                            await AsyncStorage.removeItem('userEmail');
+                            await AsyncStorage.removeItem('userAge');
+                            await AsyncStorage.removeItem('userRol');
+                            router.replace('/login');
+                        }
                     }
-                }
-            ]
-        );
+                ]
+            );
+        }
     };
 
     const handleSetupMfa = async () => {

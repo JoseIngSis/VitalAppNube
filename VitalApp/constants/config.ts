@@ -16,7 +16,7 @@ const getApiUrl = (): string => {
   if (envUrl) {
     return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`;
   }
-  return 'http://localhost:5000/api';
+  return 'http://localhost:3000/api';
 };
 
 export const API_URL = getApiUrl();

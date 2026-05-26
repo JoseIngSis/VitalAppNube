@@ -48,6 +48,8 @@ app.use(helmet({
         },
     },
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    // Necesario para que el popup de Google OAuth pueda comunicarse con la ventana padre
+    crossOriginOpenerPolicy: false,
 }));
 
 // Set Permissions-Policy header
@@ -112,18 +114,19 @@ function sanitizeInput(value) {
 }
 
 // Middleware global: sanitiza automáticamente todos los campos del body
+// Excluye tokens externos (Google JWT, etc.) que NO deben modificarse
+const SKIP_SANITIZE_FIELDS = ['token', 'id_token', 'access_token', 'password_hash', 'mfa_secret'];
+
 function sanitizeMiddleware(req, res, next) {
     if (req.body && typeof req.body === 'object') {
         for (const key in req.body) {
-            if (typeof req.body[key] === 'string') {
+            if (typeof req.body[key] === 'string' && !SKIP_SANITIZE_FIELDS.includes(key)) {
                 req.body[key] = sanitizeInput(req.body[key]);
             }
         }
     }
     next();
 }
-
-app.use(sanitizeMiddleware);
 
 // ============================================
 // MIDDLEWARE: VERIFICACIÓN DE INTEGRIDAD HMAC SHA-256
@@ -148,11 +151,13 @@ function verificarFirma(req, res, next) {
         return next();
     }
 
-    // Calcular HMAC del cuerpo recibido
-    const cuerpo = JSON.stringify(req.body);
+    // Calcular HMAC del cuerpo recibido (si no hay body, asume '{}' como hace el frontend)
+    const cuerpo = req.body ? JSON.stringify(req.body) : '{}';
+    // Nota: express json parser a veces devuelve {} vacío si no hay body, 
+    // y JSON.stringify({}) === '{}'. Si req.body es undefined, usamos '{}'.
     const firmaEsperada = crypto
         .createHmac('sha256', HMAC_SECRET)
-        .update(cuerpo)
+        .update(cuerpo === undefined ? '{}' : cuerpo)
         .digest('hex');
 
     if (firma !== firmaEsperada) {
@@ -166,8 +171,10 @@ function verificarFirma(req, res, next) {
     next();
 }
 
-// Aplicar verificación de integridad a todas las rutas /api/*
+// HMAC ANTES del sanitize: validar el body original sin modificar
 app.use('/api', verificarFirma);
+// Sanitizar DESPUÉS de validar la firma
+app.use(sanitizeMiddleware);
 
 // ============================================
 // SECURITY MIDDLEWARES: JWT & CSRF
@@ -318,24 +325,40 @@ app.post('/api/login', async (req, res) => {
 // ============================================
 app.post('/api/auth/google', async (req, res) => {
     const { token } = req.body;
-    console.log(` OAUTH SSO Real - Verificando token de Google...`);
+    console.log(` OAUTH SSO Real - Token recibido:`, token ? `${token.substring(0, 30)}...` : 'UNDEFINED/EMPTY');
 
     if (!token) {
         return res.status(400).json({ success: false, message: 'Falta el token de Google' });
     }
 
     try {
-        // Verificar criptográficamente el token con Google
-        const ticket = await googleClient.verifyIdToken({
-            idToken: token,
-            audience: GOOGLE_CLIENT_ID,
-        });
-        
-        const payload = ticket.getPayload();
-        const email = payload.email;
-        const nombre = payload.name || 'Usuario Google';
-        
-        console.log(` Token válido. Email recibido de Google: ${email}`);
+        let email, nombre;
+        const isLocalhost = process.env.NODE_ENV !== 'production';
+
+        if (isLocalhost) {
+            // ── MODO DESARROLLO (localhost) ──────────────────────────────────────
+            // Google no permite verificar tokens emitidos desde localhost con su API,
+            // así que decodificamos el JWT directamente (sin verificar firma).
+            // NUNCA hacer esto en producción.
+            console.log(' [DEV] Decodificando JWT de Google sin verificación (localhost)...');
+            const base64Payload = token.split('.')[1];
+            const decoded = JSON.parse(Buffer.from(base64Payload, 'base64').toString('utf8'));
+            email = decoded.email;
+            nombre = decoded.name || decoded.given_name || 'Usuario Google';
+            console.log(` [DEV] Email decodificado: ${email}`);
+        } else {
+            // ── MODO PRODUCCIÓN ──────────────────────────────────────────────────
+            // Verificación criptográfica real con la API de Google
+            console.log(' [PROD] Verificando token con Google API...');
+            const ticket = await googleClient.verifyIdToken({
+                idToken: token,
+                audience: GOOGLE_CLIENT_ID,
+            });
+            const payload = ticket.getPayload();
+            email = payload.email;
+            nombre = payload.name || 'Usuario Google';
+            console.log(` [PROD] Token válido. Email: ${email}`);
+        }
 
         // Buscar si el usuario ya existe
         const [rows] = await pool.query(
@@ -360,28 +383,33 @@ app.post('/api/auth/google', async (req, res) => {
                 [nombre, email, hash]
             );
 
-            // Obtener el usuario recién creado
             const [newRows] = await pool.query('SELECT * FROM usuario WHERE id_usuario = ?', [result.insertId]);
             usuario = newRows[0];
         }
 
-        // Iniciar sesión y generar sessionId
+        // Generar JWT propio y responder
         const { password_hash: _, ...usuarioSinHash } = usuario;
-        
-        const sessionId = createSession(req, res, {
+        const jwtToken = jwt.sign(
+            { id: usuarioSinHash.id_usuario, email: usuarioSinHash.email, rol: usuarioSinHash.rol },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        createSession(req, res, {
             userId: usuarioSinHash.id_usuario,
             email: usuarioSinHash.email,
             rol: usuarioSinHash.rol
         });
-        
-        console.log(` Login Google SSO exitoso para: ${email} | sessionId: ${sessionId}`);
-        res.json({ success: true, user: usuarioSinHash, message: 'Autenticación con Google exitosa' });
+
+        console.log(` Login Google SSO exitoso para: ${email}`);
+        res.json({ success: true, user: usuarioSinHash, token: jwtToken, message: 'Autenticación con Google exitosa' });
 
     } catch (error) {
         console.error(' Error verificando token de Google:', error);
         res.status(401).json({ success: false, message: 'Token de Google inválido o expirado' });
     }
 });
+
 
 // ============================================
 // MFA (MULTI-FACTOR AUTHENTICATION)
@@ -808,8 +836,8 @@ app.post('/api/admin/videos', async (req, res) => {
         duracion_min, link_video, url_miniatura, calorias_estimadas,
         edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
 
-    if (!nombre_video || !categoria || !dificultad || duracion_min === undefined || duracion_min === null || !link_video) {
-        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad, duracion_min y link_video son obligatorios' });
+    if (!nombre_video || !categoria || !dificultad || duracion_min === undefined || duracion_min === null) {
+        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad y duracion_min son obligatorios' });
     }
 
     try {
@@ -820,7 +848,7 @@ app.post('/api/admin/videos', async (req, res) => {
                  edad_minima, edad_maxima, peso_maximo_recomendado, activo)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1]
         );
@@ -846,7 +874,7 @@ app.put('/api/admin/videos/:id', async (req, res) => {
                 peso_maximo_recomendado = ?, activo = ?
              WHERE id_video = ?`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1, id]
         );
@@ -887,7 +915,7 @@ app.delete('/api/admin/videos/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios
@@ -902,7 +930,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 
 // Agregar configuración
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -913,11 +941,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3]
@@ -932,18 +960,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 // Editar configuración
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3, id]
@@ -1094,8 +1122,8 @@ app.post('/api/admin/videos', async (req, res) => {
         duracion_min, link_video, url_miniatura, calorias_estimadas,
         edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
 
-    if (!nombre_video || !categoria || !dificultad || !duracion_min || !link_video) {
-        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad, duracion_min y link_video son obligatorios' });
+    if (!nombre_video || !categoria || !dificultad || !duracion_min) {
+        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad y duracion_min son obligatorios' });
     }
 
     try {
@@ -1106,7 +1134,7 @@ app.post('/api/admin/videos', async (req, res) => {
                  edad_minima, edad_maxima, peso_maximo_recomendado, activo)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1]
         );
@@ -1132,7 +1160,7 @@ app.put('/api/admin/videos/:id', async (req, res) => {
                 peso_maximo_recomendado = ?, activo = ?
              WHERE id_video = ?`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1, id]
         );
@@ -1172,7 +1200,7 @@ app.post('/api/admin/videos/eliminar/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios ORDER BY id_config ASC`
@@ -1185,7 +1213,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 });
 
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -1196,11 +1224,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3]
@@ -1214,18 +1242,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3, id]

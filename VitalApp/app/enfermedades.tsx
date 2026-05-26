@@ -7,7 +7,8 @@ import {
   SafeAreaView,
   StatusBar,
   TouchableOpacity,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,7 +96,16 @@ export default function EnfermedadesScreen() {
           console.log('No se pudo sincronizar condiciones con el backend:', error);
         }
       }
-      Alert.alert('Guardado', 'Tus condiciones de salud han sido actualizadas.');
+      if (Platform.OS === 'web') {
+        window.alert('Tus condiciones de salud han sido actualizadas.');
+        router.push('/home');
+      } else {
+        Alert.alert(
+          'Guardado', 
+          'Tus condiciones de salud han sido actualizadas.',
+          [{ text: 'OK', onPress: () => router.push('/home') }]
+        );
+      }
     } catch (error) {
       console.log('Error guardando condiciones:', error);
       Alert.alert('Error', 'No se pudieron guardar tus condiciones. Intenta de nuevo.');
