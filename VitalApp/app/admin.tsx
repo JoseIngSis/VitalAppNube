@@ -33,7 +33,7 @@ interface Video {
 
 interface ConfigEjercicio {
     id_config: number;
-    nombre_config: string;
+    configuracion_ejercicios: string;
     edad_min: number;
     edad_max: number;
     peso_min: number | null;
@@ -72,7 +72,7 @@ const VIDEO_VACIO: Omit<Video, 'id_video'> = {
 };
 
 const CONFIG_VACIA: Omit<ConfigEjercicio, 'id_config'> = {
-    nombre_config: '', edad_min: 60, edad_max: 80, peso_min: null, peso_max: null,
+    configuracion_ejercicios: '', edad_min: 60, edad_max: 80, peso_min: null, peso_max: null,
     nivel_dificultad: 'baja', condiciones_especiales: '',
     categoria_recomendada: '', max_minutos_diarios: 30, dias_semana_recomendados: 3,
 };
@@ -560,7 +560,7 @@ export default function AdminScreen() {
                             <View key={c.id_config} style={s.tarjeta}>
                                 <View style={s.tarjetaTop}>
                                     <View style={{ flex: 1 }}>
-                                        <Text style={s.tarjetaTitulo}>{c.nombre_config || `Config #${c.id_config}`}</Text>
+                                        <Text style={s.tarjetaTitulo}>{c.configuracion_ejercicios || `Config #${c.id_config}`}</Text>
                                         <Text style={s.tarjetaSub}>{c.categoria_recomendada || 'Sin categoría'}</Text>
                                     </View>
                                     {c.nivel_dificultad ? (
@@ -726,7 +726,7 @@ export default function AdminScreen() {
                                     }}
                                 >
                                     <Text style={[s.chipTxt, { color: '#1E40AF' }]}>
-                                        {c.nombre_config || `Config #${c.id_config}`}
+                                        {c.configuracion_ejercicios || `Config #${c.id_config}`}
                                     </Text>
                                 </TouchableOpacity>
                             ))}
@@ -790,9 +790,9 @@ export default function AdminScreen() {
                 onGuardar={guardarConfig}
                 cargando={cargando}
             >
-                <Campo label="Nombre de la configuración *" value={fConfig.nombre_config}
+                <Campo label="Nombre de la configuración *" value={fConfig.configuracion_ejercicios}
                     placeholder="Ej: Plan Cardio Suave"
-                    onChangeText={t => setFConfig(p => ({ ...p, nombre_config: t }))} />
+                    onChangeText={t => setFConfig(p => ({ ...p, configuracion_ejercicios: t }))} />
                 <Campo label="Edad mínima *" value={fConfig.edad_min.toString()}
                     keyboardType="numeric"
                     onChangeText={t => setFConfig(p => ({ ...p, edad_min: parseInt(t) || 0 }))} />

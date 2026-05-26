@@ -919,7 +919,7 @@ app.delete('/api/admin/videos/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios
@@ -934,7 +934,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 
 // Agregar configuración
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -945,11 +945,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3]
@@ -964,18 +964,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 // Editar configuración
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                configuracion_ejercicios = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3, id]
@@ -1204,7 +1204,7 @@ app.post('/api/admin/videos/eliminar/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios ORDER BY id_config ASC`
@@ -1217,7 +1217,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 });
 
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -1228,11 +1228,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3]
@@ -1246,18 +1246,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                configuracion_ejercicios = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3, id]
