@@ -1,8 +1,9 @@
-﻿{
+{
   "expo": {
     "name": "Vital App",
     "slug": "vital-app",
     "version": "1.0.0",
+    "scheme": "vitalapp",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "web": {
