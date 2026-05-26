@@ -65,7 +65,7 @@ export async function fetchSeguro(url: string, options: RequestInit = {}): Promi
         try {
             let csrf = await AsyncStorage.getItem('csrfToken');
             if (!csrf) {
-                const csrfRes = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/csrf-token`, {
+                const csrfRes = await fetch(`${API_URL}/csrf-token`, {
                     credentials: 'include'
                 });
                 const csrfData = await csrfRes.json();

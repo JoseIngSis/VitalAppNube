@@ -317,13 +317,17 @@ export default function LoginScreen() {
 
     useEffect(() => {
         if (response?.type === 'success') {
-            const { id_token } = response.params;
+            // Google puede devolver el token en distintos campos según el flujo (web vs nativo)
+            const id_token = response.params?.id_token || (response.authentication as any)?.idToken;
+            console.log('[Google SSO] Response completa:', JSON.stringify(response?.params));
+            console.log('[Google SSO] id_token encontrado:', id_token ? `${id_token.substring(0, 30)}...` : 'NINGUNO');
             if (id_token) {
                 handleRealGoogleOAuth(id_token);
             } else {
-                Alert.alert('Error SSO', 'Google no devolvió el ID Token.');
+                Alert.alert('Error SSO', `Google no devolvió el ID Token.\nCampos recibidos: ${Object.keys(response.params || {}).join(', ')}`);
             }
         } else if (response?.type === 'error') {
+            console.log('[Google SSO] Error response:', JSON.stringify(response));
             Alert.alert('Error SSO', 'No se pudo completar el inicio de sesión con Google.');
         }
     }, [response]);
@@ -455,6 +459,7 @@ export default function LoginScreen() {
                 await AsyncStorage.setItem('userEmail', u.email || '');
                 await AsyncStorage.setItem('userAge', (u.edad ?? '').toString());
                 await AsyncStorage.setItem('userRol', u.rol || 'usuario');
+                if (data.token) await AsyncStorage.setItem('jwtToken', data.token);
                 router.replace(u.rol === 'admin' ? '/admin' : '/home');
             } else {
                 Alert.alert('Error SSO', data.message || 'No se pudo iniciar sesión con Google.');
@@ -633,23 +638,7 @@ export default function LoginScreen() {
                                     </LinearGradient>
                                 </TouchableOpacity>
 
-                                {/* Divisor O */}
-                                <View style={st.dividerWrap}>
-                                    <View style={st.dividerLine} />
-                                    <Text style={st.dividerTxt}>O</Text>
-                                    <View style={st.dividerLine} />
-                                </View>
 
-                                {/* Botón SSO Real */}
-                                <TouchableOpacity
-                                    style={[st.btnOAuth, (!request || cargando) && { opacity: 0.6 }]}
-                                    onPress={handleOAuthPress}
-                                    disabled={!request || cargando}
-                                    activeOpacity={0.8}
-                                >
-                                    <Ionicons name="logo-google" size={20} color="#EA4335" style={{ marginRight: 10 }} />
-                                    <Text style={st.btnOAuthTxt}>Continuar con Google</Text>
-                                </TouchableOpacity>
 
                                 <TouchableOpacity
                                     style={st.switchRow}
