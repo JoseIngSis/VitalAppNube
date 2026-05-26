@@ -949,10 +949,10 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
-                nivel_dificultad ?? null, condiciones_especiales ?? null,
-                categoria_recomendada ?? null,
-                max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3]
+            [configuracion_ejercicios || '', edad_min, edad_max, peso_min || null, peso_max || null,
+                nivel_dificultad || null, condiciones_especiales || null,
+                categoria_recomendada || null,
+                max_minutos_diarios || 30, dias_semana_recomendados || 3]
         );
         res.json({ success: true, id: result.insertId, message: 'Configuración agregada correctamente' });
     } catch (error) {
@@ -1050,10 +1050,10 @@ app.put('/api/admin/usuarios/:id', async (req, res) => {
                 telefono = ?, rol = ?, cuenta_activa = ?,
                 nivel_actividad = ?, condiciones_medicas = ?, restricciones = ?
              WHERE id_usuario = ?`,
-            [nombre, email, peso, altura ?? null, genero ?? null,
-                telefono ?? null, rol ?? 'usuario', cuenta_activa ?? 1,
-                nivel_actividad ?? 'sedentario', encrypted_condiciones ?? null,
-                encrypted_restricciones ?? null, id]
+            [nombre, email, peso, altura || null, genero || null,
+                telefono || null, rol || 'usuario', cuenta_activa || 1,
+                nivel_actividad || 'sedentario', encrypted_condiciones || null,
+                encrypted_restricciones || null, id]
         );
         if (result.affectedRows > 0) {
             res.json({ success: true, message: 'Usuario actualizado correctamente' });
@@ -1100,173 +1100,6 @@ app.get('/api/tips', (req, res) => {
 });
 
 // ============================================
-// ADMIN — VIDEOS
-// ============================================
-
-// Listar todos (incluye inactivos para el admin)
-app.get('/api/admin/videos', async (req, res) => {
-    try {
-        const [rows] = await pool.query(
-            `SELECT id_video, nombre_video, descripcion, categoria, subcategoria,
-                    dificultad, duracion_min, link_video, url_miniatura,
-                    calorias_estimadas, edad_minima, edad_maxima,
-                    peso_maximo_recomendado, activo
-             FROM videos ORDER BY id_video DESC`
-        );
-        res.json({ success: true, videos: rows });
-    } catch (error) {
-        console.error(' Error al listar videos (admin):', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Crear video
-app.post('/api/admin/videos', async (req, res) => {
-    const { nombre_video, descripcion, categoria, subcategoria, dificultad,
-        duracion_min, link_video, url_miniatura, calorias_estimadas,
-        edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
-
-    if (!nombre_video || !categoria || !dificultad || !duracion_min) {
-        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad y duracion_min son obligatorios' });
-    }
-
-    try {
-        const [result] = await pool.query(
-            `INSERT INTO videos
-                (nombre_video, descripcion, categoria, subcategoria, dificultad,
-                 duracion_min, link_video, url_miniatura, calorias_estimadas,
-                 edad_minima, edad_maxima, peso_maximo_recomendado, activo)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
-                calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
-                peso_maximo_recomendado ?? null, activo ?? 1]
-        );
-        res.json({ success: true, id: result.insertId, message: 'Video creado correctamente' });
-    } catch (error) {
-        console.error(' Error al crear video:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Editar video
-app.put('/api/admin/videos/:id', async (req, res) => {
-    const { id } = req.params;
-    const { nombre_video, descripcion, categoria, subcategoria, dificultad,
-        duracion_min, link_video, url_miniatura, calorias_estimadas,
-        edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
-    try {
-        const [result] = await pool.query(
-            `UPDATE videos SET
-                nombre_video = ?, descripcion = ?, categoria = ?, subcategoria = ?,
-                dificultad = ?, duracion_min = ?, link_video = ?, url_miniatura = ?,
-                calorias_estimadas = ?, edad_minima = ?, edad_maxima = ?,
-                peso_maximo_recomendado = ?, activo = ?
-             WHERE id_video = ?`,
-            [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
-                calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
-                peso_maximo_recomendado ?? null, activo ?? 1, id]
-        );
-        if (result.affectedRows > 0) {
-            res.json({ success: true, message: 'Video actualizado correctamente' });
-        } else {
-            res.json({ success: false, message: 'Video no encontrado' });
-        }
-    } catch (error) {
-        console.error(' Error al editar video:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// Eliminar video — llama al SP sp_eliminar_video
-app.post('/api/admin/videos/eliminar/:id', async (req, res) => {
-    const { id } = req.params;
-    console.log('  sp_eliminar_video ID:', id);
-    try {
-        const [[result]] = await pool.query('CALL sp_eliminar_video(?)', [id]);
-        console.log('   filas_afectadas:', result.filas_afectadas);
-        if (result.filas_afectadas > 0) {
-            res.json({ success: true, message: 'Video eliminado correctamente' });
-        } else {
-            res.json({ success: false, message: 'Video no encontrado' });
-        }
-    } catch (error) {
-        console.error(' Error al eliminar video:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// ============================================
-// ADMIN — CONFIGURACION_EJERCICIOS
-// ============================================
-
-app.get('/api/admin/config-ejercicios', async (req, res) => {
-    try {
-        const [rows] = await pool.query(
-            `SELECT id_config, configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max,
-                    nivel_dificultad, condiciones_especiales, categoria_recomendada,
-                    max_minutos_diarios, dias_semana_recomendados
-             FROM configuracion_ejercicios ORDER BY id_config ASC`
-        );
-        res.json({ success: true, configuraciones: rows });
-    } catch (error) {
-        console.error(' Error al listar config:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
-        condiciones_especiales, categoria_recomendada,
-        max_minutos_diarios, dias_semana_recomendados } = req.body;
-
-    if (!edad_min || !edad_max) {
-        return res.status(400).json({ success: false, message: 'edad_min y edad_max son obligatorios' });
-    }
-
-    try {
-        const [result] = await pool.query(
-            `INSERT INTO configuracion_ejercicios
-                (configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
-                 condiciones_especiales, categoria_recomendada,
-                 max_minutos_diarios, dias_semana_recomendados)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
-                nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
-                categoria_recomendada ?? null, max_minutos_diarios ?? 30,
-                dias_semana_recomendados ?? 3]
-        );
-        res.json({ success: true, id: result.insertId, message: 'Configuración creada correctamente' });
-    } catch (error) {
-        console.error(' Error al crear config:', error);
-        res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
-    const { id } = req.params;
-    const { configuracion_ejercicios, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
-        condiciones_especiales, categoria_recomendada,
-        max_minutos_diarios, dias_semana_recomendados } = req.body;
-    try {
-        const [result] = await pool.query(
-            `UPDATE configuracion_ejercicios SET
-                configuracion_ejercicios = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
-                nivel_dificultad = ?, condiciones_especiales = ?,
-                categoria_recomendada = ?, max_minutos_diarios = ?,
-                dias_semana_recomendados = ?
-             WHERE id_config = ?`,
-            [configuracion_ejercicios ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
-                nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
-                categoria_recomendada ?? null, max_minutos_diarios ?? 30,
-                dias_semana_recomendados ?? 3, id]
-        );
-        if (result.affectedRows > 0) {
-            res.json({ success: true, message: 'Configuración actualizada correctamente' });
-        } else {
-            res.json({ success: false, message: 'Configuración no encontrada' });
-        }
     } catch (error) {
         console.error(' Error al editar config:', error);
         res.status(500).json({ success: false, message: error.message });
