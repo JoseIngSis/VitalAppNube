@@ -12,7 +12,7 @@ import { fetchSeguro } from '../utils/api';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type Seccion = 'videos' | 'config' | 'usuarios';
+type Seccion = 'videos' | 'usuarios';
 
 interface Video {
     id_video: number;
@@ -31,19 +31,6 @@ interface Video {
     activo: number;
 }
 
-interface ConfigEjercicio {
-    id_config: number;
-    configuracion_ejercicios: string;
-    edad_min: number;
-    edad_max: number;
-    peso_min: number | null;
-    peso_max: number | null;
-    nivel_dificultad: 'baja' | 'media' | 'alta' | '';
-    condiciones_especiales: string;
-    categoria_recomendada: string;
-    max_minutos_diarios: number;
-    dias_semana_recomendados: number;
-}
 
 interface Usuario {
     id_usuario: number;
@@ -69,12 +56,6 @@ const VIDEO_VACIO: Omit<Video, 'id_video'> = {
     dificultad: 'baja', duracion_min: 0, link_video: '', url_miniatura: '',
     calorias_estimadas: 0, edad_minima: 60, edad_maxima: 100,
     peso_maximo_recomendado: 0, activo: 1,
-};
-
-const CONFIG_VACIA: Omit<ConfigEjercicio, 'id_config'> = {
-    configuracion_ejercicios: '', edad_min: 60, edad_max: 80, peso_min: null, peso_max: null,
-    nivel_dificultad: 'baja', condiciones_especiales: '',
-    categoria_recomendada: '', max_minutos_diarios: 30, dias_semana_recomendados: 3,
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -222,22 +203,18 @@ export default function AdminScreen() {
 
     // Datos
     const [videos, setVideos] = useState<Video[]>([]);
-    const [configs, setConfigs] = useState<ConfigEjercicio[]>([]);
     const [usuarios, setUsuarios] = useState<Usuario[]>([]);
 
     // Modales
     const [modalVideo, setModalVideo] = useState(false);
-    const [modalConfig, setModalConfig] = useState(false);
     const [modalUsuario, setModalUsuario] = useState(false);
 
     // Item en edición (null = nuevo)
     const [videoEdit, setVideoEdit] = useState<Video | null>(null);
-    const [configEdit, setConfigEdit] = useState<ConfigEjercicio | null>(null);
     const [usuarioEdit, setUsuarioEdit] = useState<Usuario | null>(null);
 
     // Formularios
     const [fVideo, setFVideo] = useState<Omit<Video, 'id_video'>>(VIDEO_VACIO);
-    const [fConfig, setFConfig] = useState<Omit<ConfigEjercicio, 'id_config'>>(CONFIG_VACIA);
     const [fUsuario, setFUsuario] = useState<Partial<Usuario>>({});
 
     // ── Verificar rol admin ────────────────────────────────────────────────────
@@ -258,9 +235,6 @@ export default function AdminScreen() {
             if (seccion === 'videos') {
                 const d = await api('/admin/videos');
                 if (d.success) setVideos(d.videos);
-            } else if (seccion === 'config') {
-                const d = await api('/admin/config-ejercicios');
-                if (d.success) setConfigs(d.configuraciones);
             } else {
                 const d = await api('/admin/usuarios');
                 if (d.success) setUsuarios(d.usuarios);
@@ -335,48 +309,6 @@ export default function AdminScreen() {
             try {
                 const d = await api(`/admin/videos/${v.id_video}`, 'DELETE');
                 if (d.success) { Alert.alert('', 'Video eliminado.'); cargar(); }
-                else Alert.alert('Error', d.message);
-            } catch (e: any) {
-                Alert.alert('Error', e.message);
-            } finally { setCargando(false); }
-        });
-    };
-
-    // ── CONFIG — acciones ──────────────────────────────────────────────────────
-    const abrirNuevaConfig = () => {
-        setConfigEdit(null);
-        setFConfig(CONFIG_VACIA);
-        setModalConfig(true);
-    };
-
-    const abrirEditarConfig = (c: ConfigEjercicio) => {
-        setConfigEdit(c);
-        setFConfig({ ...c });
-        setModalConfig(true);
-    };
-
-    const guardarConfig = async () => {
-        if (fConfig.edad_min === undefined || fConfig.edad_max === undefined) {
-            mostrarAlerta('Faltan datos', 'Edad mínima y máxima son obligatorias.');
-            return;
-        }
-        setCargando(true);
-        try {
-            const d = configEdit
-                ? await api(`/admin/config-ejercicios/${configEdit.id_config}`, 'PUT', fConfig)
-                : await api('/admin/config-ejercicios', 'POST', fConfig);
-            if (d.success) { setModalConfig(false); cargar(); }
-            else mostrarAlerta('Error', d.message);
-        } catch { mostrarAlerta('Error', 'No se pudo guardar.'); }
-        finally { setCargando(false); }
-    };
-
-    const eliminarConfig = (c: ConfigEjercicio) => {
-        confirmarEliminacion('Eliminar configuración', `¿Eliminar config #${c.id_config}?`, async () => {
-            setCargando(true);
-            try {
-                const d = await api(`/admin/config-ejercicios/${c.id_config}`, 'DELETE');
-                if (d.success) { Alert.alert('', 'Configuración eliminada.'); cargar(); }
                 else Alert.alert('Error', d.message);
             } catch (e: any) {
                 Alert.alert('Error', e.message);
@@ -461,7 +393,6 @@ export default function AdminScreen() {
             <View style={s.tabs}>
                 {([
                     { key: 'videos', label: 'Ejercicios', icon: 'play-circle-outline' },
-                    { key: 'config', label: 'Configs', icon: 'settings-outline' },
                     { key: 'usuarios', label: 'Usuarios', icon: 'people-outline' },
                 ] as { key: Seccion; label: string; icon: any }[]).map(t => (
                     <TouchableOpacity
@@ -485,11 +416,11 @@ export default function AdminScreen() {
             {seccion !== 'usuarios' && (
                 <TouchableOpacity
                     style={s.btnAgregar}
-                    onPress={seccion === 'videos' ? abrirNuevoVideo : abrirNuevaConfig}
+                    onPress={abrirNuevoVideo}
                 >
                     <Ionicons name="add-circle" size={20} color="#fff" />
                     <Text style={s.btnAgregarTxt}>
-                        {seccion === 'videos' ? 'Nuevo ejercicio' : 'Nueva configuración'}
+                        Nuevo ejercicio
                     </Text>
                 </TouchableOpacity>
             )}
@@ -548,60 +479,6 @@ export default function AdminScreen() {
                                         <Text style={s.btnEditarTxt}>Editar</Text>
                                     </TouchableOpacity>
                                     <TouchableOpacity style={s.btnEliminar} onPress={() => eliminarVideo(v)}>
-                                        <Ionicons name="trash-outline" size={15} color="#EF4444" />
-                                        <Text style={s.btnEliminarTxt}>Eliminar</Text>
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-                        ))}
-
-                        {/* ─── CONFIGS ─── */}
-                        {seccion === 'config' && configs.map(c => (
-                            <View key={c.id_config} style={s.tarjeta}>
-                                <View style={s.tarjetaTop}>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={s.tarjetaTitulo}>{c.configuracion_ejercicios || `Config #${c.id_config}`}</Text>
-                                        <Text style={s.tarjetaSub}>{c.categoria_recomendada || 'Sin categoría'}</Text>
-                                    </View>
-                                    {c.nivel_dificultad ? (
-                                        <View style={[s.badge, { backgroundColor: (colorDificultad[c.nivel_dificultad] ?? '#94A3B8') + '22' }]}>
-                                            <Text style={[s.badgeTxt, { color: colorDificultad[c.nivel_dificultad] ?? '#64748B' }]}>
-                                                {c.nivel_dificultad}
-                                            </Text>
-                                        </View>
-                                    ) : null}
-                                </View>
-                                <View style={s.tarjetaMeta}>
-                                    <View style={s.metaItem}>
-                                        <Ionicons name="person-outline" size={13} color="#94A3B8" />
-                                        <Text style={s.metaTxt}>{c.edad_min}–{c.edad_max} años</Text>
-                                    </View>
-                                    {c.peso_min != null && (
-                                        <View style={s.metaItem}>
-                                            <Ionicons name="barbell-outline" size={13} color="#94A3B8" />
-                                            <Text style={s.metaTxt}>{c.peso_min}–{c.peso_max} kg</Text>
-                                        </View>
-                                    )}
-                                    <View style={s.metaItem}>
-                                        <Ionicons name="time-outline" size={13} color="#94A3B8" />
-                                        <Text style={s.metaTxt}>{c.max_minutos_diarios} min/día</Text>
-                                    </View>
-                                    <View style={s.metaItem}>
-                                        <Ionicons name="calendar-outline" size={13} color="#94A3B8" />
-                                        <Text style={s.metaTxt}>{c.dias_semana_recomendados} días/sem</Text>
-                                    </View>
-                                </View>
-                                {c.condiciones_especiales ? (
-                                    <Text style={s.condicionTxt} numberOfLines={2}>
-                                         {c.condiciones_especiales}
-                                    </Text>
-                                ) : null}
-                                <View style={s.tarjetaAcciones}>
-                                    <TouchableOpacity style={s.btnEditar} onPress={() => abrirEditarConfig(c)}>
-                                        <Ionicons name="pencil-outline" size={15} color="#2563EB" />
-                                        <Text style={s.btnEditarTxt}>Editar</Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={s.btnEliminar} onPress={() => eliminarConfig(c)}>
                                         <Ionicons name="trash-outline" size={15} color="#EF4444" />
                                         <Text style={s.btnEliminarTxt}>Eliminar</Text>
                                     </TouchableOpacity>
@@ -677,12 +554,6 @@ export default function AdminScreen() {
                                 <Text style={s.emptyTxt}>No hay ejercicios registrados</Text>
                             </View>
                         )}
-                        {seccion === 'config' && configs.length === 0 && !cargando && (
-                            <View style={s.emptyState}>
-                                <Ionicons name="settings-outline" size={48} color="#CBD5E1" />
-                                <Text style={s.emptyTxt}>No hay configuraciones registradas</Text>
-                            </View>
-                        )}
                         {seccion === 'usuarios' && usuarios.length === 0 && !cargando && (
                             <View style={s.emptyState}>
                                 <Ionicons name="people-outline" size={48} color="#CBD5E1" />
@@ -703,36 +574,6 @@ export default function AdminScreen() {
                 onGuardar={guardarVideo}
                 cargando={cargando}
             >
-                {configs.length > 0 && (
-                    <View style={{ marginBottom: 15, padding: 10, backgroundColor: '#EFF6FF', borderRadius: 12 }}>
-                        <Text style={{ fontSize: 13, fontWeight: '700', color: '#1D4ED8', marginBottom: 8 }}>
-                            💡 Autocompletar desde Configuración
-                        </Text>
-                        <View style={s.chipRow}>
-                            {configs.map(c => (
-                                <TouchableOpacity
-                                    key={c.id_config}
-                                    style={[s.chip, { backgroundColor: '#DBEAFE', borderColor: '#BFDBFE' }]}
-                                    onPress={() => {
-                                        setFVideo(p => ({
-                                            ...p,
-                                            categoria: c.categoria_recomendada || p.categoria,
-                                            dificultad: c.nivel_dificultad || p.dificultad,
-                                            duracion_min: c.max_minutos_diarios || p.duracion_min,
-                                            edad_minima: c.edad_min || p.edad_minima,
-                                            edad_maxima: c.edad_max || p.edad_maxima,
-                                            peso_maximo_recomendado: c.peso_max || p.peso_maximo_recomendado
-                                        }));
-                                    }}
-                                >
-                                    <Text style={[s.chipTxt, { color: '#1E40AF' }]}>
-                                        {c.configuracion_ejercicios || `Config #${c.id_config}`}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-                )}
                 <Campo label="Nombre del ejercicio *" value={fVideo.nombre_video}
                     onChangeText={t => setFVideo(p => ({ ...p, nombre_video: t }))} />
                 <Campo label="Descripción" value={fVideo.descripcion} multiline
@@ -778,59 +619,6 @@ export default function AdminScreen() {
                     valor={fVideo.activo.toString()}
                     onSelect={v => setFVideo(p => ({ ...p, activo: parseInt(v) }))}
                 />
-            </ModalForm>
-
-            {/* ══════════════════════════════════════════════════
-                MODAL — CONFIGURACIÓN EJERCICIOS
-            ══════════════════════════════════════════════════ */}
-            <ModalForm
-                visible={modalConfig}
-                titulo={configEdit ? 'Editar configuración' : 'Nueva configuración'}
-                onClose={() => setModalConfig(false)}
-                onGuardar={guardarConfig}
-                cargando={cargando}
-            >
-                <Campo label="Nombre de la configuración *" value={fConfig.configuracion_ejercicios}
-                    placeholder="Ej: Plan Cardio Suave"
-                    onChangeText={t => setFConfig(p => ({ ...p, configuracion_ejercicios: t }))} />
-                <Campo label="Edad mínima *" value={fConfig.edad_min.toString()}
-                    keyboardType="numeric"
-                    onChangeText={t => setFConfig(p => ({ ...p, edad_min: parseInt(t) || 0 }))} />
-                <Campo label="Edad máxima *" value={fConfig.edad_max.toString()}
-                    keyboardType="numeric"
-                    onChangeText={t => setFConfig(p => ({ ...p, edad_max: parseInt(t) || 0 }))} />
-                <Campo label="Peso mínimo (kg)" value={fConfig.peso_min?.toString() ?? ''}
-                    keyboardType="numeric" placeholder="Dejar vacío si no aplica"
-                    onChangeText={t => setFConfig(p => ({ ...p, peso_min: t ? parseFloat(t) : null }))} />
-                <Campo label="Peso máximo (kg)" value={fConfig.peso_max?.toString() ?? ''}
-                    keyboardType="numeric" placeholder="Dejar vacío si no aplica"
-                    onChangeText={t => setFConfig(p => ({ ...p, peso_max: t ? parseFloat(t) : null }))} />
-                <Selector
-                    label="Nivel de dificultad"
-                    opciones={['baja', 'media', 'alta']}
-                    valor={fConfig.nivel_dificultad ?? ''}
-                    onSelect={v => setFConfig(p => ({ ...p, nivel_dificultad: v as any }))}
-                />
-                <MultiSelector
-                    label="Condiciones especiales"
-                    opciones={['Diabetes', 'Hipertensión', 'Cáncer', 'Problemas de corazón', 'Artritis', 'Osteoporosis', 'Ninguna']}
-                    valoresStr={fConfig.condiciones_especiales ?? ''}
-                    onChange={t => setFConfig(p => ({ ...p, condiciones_especiales: t }))}
-                />
-                
-                <Selector
-                    label="Categoría recomendada"
-                    opciones={['Cardio', 'Zumba', 'Fuerza', 'Flexibilidad', 'Equilibrio', 'Movilidad', 'Silla', 'Relajación', 'Respiración']}
-                    valor={fConfig.categoria_recomendada}
-                    onSelect={v => setFConfig(p => ({ ...p, categoria_recomendada: v }))}
-                />
-                
-                <Campo label="Máx. minutos diarios" value={fConfig.max_minutos_diarios.toString()}
-                    keyboardType="numeric"
-                    onChangeText={t => setFConfig(p => ({ ...p, max_minutos_diarios: parseInt(t) || 30 }))} />
-                <Campo label="Días por semana recomendados" value={fConfig.dias_semana_recomendados.toString()}
-                    keyboardType="numeric"
-                    onChangeText={t => setFConfig(p => ({ ...p, dias_semana_recomendados: parseInt(t) || 3 }))} />
             </ModalForm>
 
             {/* ══════════════════════════════════════════════════
