@@ -244,8 +244,12 @@ async function initDB() {
 initDB();
 
 // ============================================
-// HEALTH CHECK
+// ROOT AND HEALTH CHECK
 // ============================================
+app.get('/', (req, res) => {
+    res.status(200).json({ message: "VitalApp API is online and running correctly" });
+});
+
 app.get('/api/health', (req, res) => {
     res.json({
         message: 'Vital App Backend funcionando correctamente',
