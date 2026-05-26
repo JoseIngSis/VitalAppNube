@@ -36,16 +36,7 @@ export default function DetalleEjercicioScreen() {
 
 
 
-    // Soporte para seguimiento de tiempo en Web
-    useEffect(() => {
-        let interval: any;
-        if (Platform.OS === 'web' && !cargando) {
-            interval = setInterval(() => {
-                setSegundosVistos(prev => prev + 1);
-            }, 1000);
-        }
-        return () => clearInterval(interval);
-    }, [cargando]);
+
 
     const getParamString = (value: string | string[] | undefined): string => {
         if (Array.isArray(value)) return value[0] || '';
@@ -98,8 +89,8 @@ export default function DetalleEjercicioScreen() {
         }
     };
 
-    const handleCompletar = async () => {
-        if (segundosVistos < TIEMPO_MINIMO) {
+    const handleCompletar = async (forzar = false) => {
+        if (!forzar && segundosVistos < TIEMPO_MINIMO) {
             Alert.alert(
                 'Tiempo insuficiente', 
                 `Para asegurar la efectividad del ejercicio, se requiere una duración mínima de ${TIEMPO_MINIMO} segundos.`,
@@ -187,13 +178,34 @@ export default function DetalleEjercicioScreen() {
 
     const videoId = getYouTubeId(ejercicio.url) || getVideoIdForExercise(ejercicio.nombre);
 
+    // Soporte para seguimiento de tiempo en Web o sin video
+    useEffect(() => {
+        let interval: any;
+        if ((Platform.OS === 'web' || !videoId) && !cargando) {
+            interval = setInterval(() => {
+                setSegundosVistos(prev => prev + 1);
+            }, 1000);
+        }
+        return () => clearInterval(interval);
+    }, [cargando, videoId]);
+
+    useEffect(() => {
+        if (!videoId) setCargando(false);
+    }, [videoId]);
+
     return (
         <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.bg }]}>
             <StatusBar barStyle={colors.statusBarStyle} backgroundColor={colors.bg} />
             
             {/* Cabecera pegajosa */}
             <View style={[styles.topHeader, { backgroundColor: colors.bg, borderBottomColor: colors.cardBorder, borderBottomWidth: 1 }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                <TouchableOpacity onPress={() => {
+                    if (router.canGoBack()) {
+                        router.back();
+                    } else {
+                        router.replace('/(tabs)/ejercicios');
+                    }
+                }} style={styles.backButton}>
                     <Ionicons name="arrow-back" size={28} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={[styles.topHeaderTitle, { color: colors.text }]} numberOfLines={1}>{ejercicio.nombre}</Text>
@@ -201,42 +213,54 @@ export default function DetalleEjercicioScreen() {
             </View>
 
             <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-                
+                <View style={styles.webContainer}>
                 {/* Reproductor de Video Adaptable */}
-                <View style={styles.videoCard}>
-                    <View style={styles.videoContainer}>
-                        <VideoPlayer 
-                            videoId={videoId || ''} 
-                            onEnd={irAlSiguiente} 
-                            onProgress={(segundos) => setSegundosVistos(segundos)}
-                            onReady={() => setCargando(false)}
-                        />
+                {videoId ? (
+                    <>
+                        <View style={styles.videoCard}>
+                            <View style={styles.videoContainer}>
+                                <VideoPlayer 
+                                    videoId={videoId} 
+                                    onEnd={irAlSiguiente} 
+                                    onProgress={(segundos) => setSegundosVistos(segundos)}
+                                    onReady={() => setCargando(false)}
+                                />
 
-                        {cargando && (
-                            <View style={styles.loadingOverlay}>
-                                <ActivityIndicator size="large" color="#3B82F6" />
-                                <Text style={styles.loadingText}>Cargando tu video...</Text>
+                                {cargando && (
+                                    <View style={styles.loadingOverlay}>
+                                        <ActivityIndicator size="large" color="#3B82F6" />
+                                        <Text style={styles.loadingText}>Cargando tu video...</Text>
+                                    </View>
+                                )}
                             </View>
-                        )}
-                    </View>
-                </View>
+                        </View>
 
-                {/* Botón de fallback por si el video no carga */}
-                <TouchableOpacity 
-                    style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: -10, marginBottom: 20, gap: 8 }}
-                    onPress={() => {
-                        if (typeof window !== 'undefined') {
-                            window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
-                        } else {
-                            Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`);
-                        }
-                    }}
-                >
-                    <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
-                    <Text style={{ color: colors.textSecondary, fontSize: 14, textDecorationLine: 'underline' }}>
-                        ¿Problemas con el video? Ábrelo en YouTube
-                    </Text>
-                </TouchableOpacity>
+                        {/* Botón de fallback por si el video no carga */}
+                        <TouchableOpacity 
+                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginTop: -10, marginBottom: 20, gap: 8 }}
+                            onPress={() => {
+                                if (typeof window !== 'undefined') {
+                                    window.open(`https://www.youtube.com/watch?v=${videoId}`, '_blank');
+                                } else {
+                                    Linking.openURL(`https://www.youtube.com/watch?v=${videoId}`);
+                                }
+                            }}
+                        >
+                            <Ionicons name="open-outline" size={16} color={colors.textSecondary} />
+                            <Text style={{ color: colors.textSecondary, fontSize: 14, textDecorationLine: 'underline' }}>
+                                ¿Problemas con el video? Ábrelo en YouTube
+                            </Text>
+                        </TouchableOpacity>
+                    </>
+                ) : (
+                    <View style={[styles.contentSection, { backgroundColor: colors.isDark ? '#1E3A8A' : '#EFF6FF', borderColor: colors.isDark ? '#1E40AF' : '#BFDBFE', alignItems: 'center', marginTop: 10 }]}>
+                        <Ionicons name="barbell" size={48} color={colors.isDark ? '#60A5FA' : '#2563EB'} style={{ marginBottom: 10 }} />
+                        <Text style={[styles.sectionTitle, { color: colors.isDark ? '#93C5FD' : '#1E40AF', textAlign: 'center' }]}>Ejercicio sin video</Text>
+                        <Text style={[styles.sectionText, { color: colors.isDark ? '#BFDBFE' : '#1E3A8A', textAlign: 'center', marginTop: 5 }]}>
+                            Sigue las instrucciones paso a paso que aparecen más abajo. El temporizador avanzará automáticamente.
+                        </Text>
+                    </View>
+                )}
 
                 {/* Info Principal */}
                 <View style={styles.heroSection}>
@@ -380,15 +404,20 @@ export default function DetalleEjercicioScreen() {
                     </Text>
                 </View>
 
-                {/* Botones de acción */}
                 <TouchableOpacity 
                     style={[
                         styles.mainButton, 
                         completado && styles.mainButtonSuccess,
                         (!completado && segundosVistos < TIEMPO_MINIMO) && { opacity: 0.7 }
                     ]}
-                    onPress={handleCompletar}
-                    disabled={completado}
+                    onPress={() => {
+                        if (completado) {
+                            if (router.canGoBack()) router.back();
+                            else router.replace('/(tabs)/ejercicios');
+                        } else {
+                            handleCompletar(false);
+                        }
+                    }}
                     activeOpacity={0.8}
                 >
                     <LinearGradient
@@ -411,6 +440,18 @@ export default function DetalleEjercicioScreen() {
                     </LinearGradient>
                 </TouchableOpacity>
 
+                {/* Botón para terminar antes */}
+                {!completado && segundosVistos < TIEMPO_MINIMO && (
+                    <TouchableOpacity 
+                        style={{ marginTop: 15, alignItems: 'center', marginBottom: 20 }}
+                        onPress={() => handleCompletar(true)}
+                    >
+                        <Text style={{ color: colors.textSecondary, fontSize: 16, textDecorationLine: 'underline', fontWeight: '600' }}>
+                            Ya terminé (Saltar temporizador)
+                        </Text>
+                    </TouchableOpacity>
+                )}
+                </View>
             </ScrollView>
 
             {/* Modal de Video Pantalla Completa */}
@@ -532,6 +573,11 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingBottom: 40,
     },
+    webContainer: {
+        width: '100%',
+        maxWidth: 600,
+        alignSelf: 'center',
+    },
     videoCard: {
         marginHorizontal: 20,
         borderRadius: 24,
@@ -555,7 +601,7 @@ const styles = StyleSheet.create({
     },
     videoContainer: {
         width: '100%',
-        height: width * 0.55,
+        aspectRatio: 16 / 9,
         position: 'relative',
     },
     video: {

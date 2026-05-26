@@ -151,11 +151,13 @@ function verificarFirma(req, res, next) {
         return next();
     }
 
-    // Calcular HMAC del cuerpo recibido
-    const cuerpo = JSON.stringify(req.body);
+    // Calcular HMAC del cuerpo recibido (si no hay body, asume '{}' como hace el frontend)
+    const cuerpo = req.body ? JSON.stringify(req.body) : '{}';
+    // Nota: express json parser a veces devuelve {} vacío si no hay body, 
+    // y JSON.stringify({}) === '{}'. Si req.body es undefined, usamos '{}'.
     const firmaEsperada = crypto
         .createHmac('sha256', HMAC_SECRET)
-        .update(cuerpo)
+        .update(cuerpo === undefined ? '{}' : cuerpo)
         .digest('hex');
 
     if (firma !== firmaEsperada) {
@@ -834,8 +836,8 @@ app.post('/api/admin/videos', async (req, res) => {
         duracion_min, link_video, url_miniatura, calorias_estimadas,
         edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
 
-    if (!nombre_video || !categoria || !dificultad || duracion_min === undefined || duracion_min === null || !link_video) {
-        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad, duracion_min y link_video son obligatorios' });
+    if (!nombre_video || !categoria || !dificultad || duracion_min === undefined || duracion_min === null) {
+        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad y duracion_min son obligatorios' });
     }
 
     try {
@@ -846,7 +848,7 @@ app.post('/api/admin/videos', async (req, res) => {
                  edad_minima, edad_maxima, peso_maximo_recomendado, activo)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1]
         );
@@ -872,7 +874,7 @@ app.put('/api/admin/videos/:id', async (req, res) => {
                 peso_maximo_recomendado = ?, activo = ?
              WHERE id_video = ?`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1, id]
         );
@@ -913,7 +915,7 @@ app.delete('/api/admin/videos/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios
@@ -928,7 +930,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 
 // Agregar configuración
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -939,11 +941,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3]
@@ -958,18 +960,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 // Editar configuración
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? null, condiciones_especiales ?? null,
                 categoria_recomendada ?? null,
                 max_minutos_diarios ?? 30, dias_semana_recomendados ?? 3, id]
@@ -1120,8 +1122,8 @@ app.post('/api/admin/videos', async (req, res) => {
         duracion_min, link_video, url_miniatura, calorias_estimadas,
         edad_minima, edad_maxima, peso_maximo_recomendado, activo } = req.body;
 
-    if (!nombre_video || !categoria || !dificultad || !duracion_min || !link_video) {
-        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad, duracion_min y link_video son obligatorios' });
+    if (!nombre_video || !categoria || !dificultad || !duracion_min) {
+        return res.status(400).json({ success: false, message: 'nombre_video, categoria, dificultad y duracion_min son obligatorios' });
     }
 
     try {
@@ -1132,7 +1134,7 @@ app.post('/api/admin/videos', async (req, res) => {
                  edad_minima, edad_maxima, peso_maximo_recomendado, activo)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1]
         );
@@ -1158,7 +1160,7 @@ app.put('/api/admin/videos/:id', async (req, res) => {
                 peso_maximo_recomendado = ?, activo = ?
              WHERE id_video = ?`,
             [nombre_video, descripcion ?? null, categoria, subcategoria ?? null,
-                dificultad, duracion_min, link_video, url_miniatura ?? null,
+                dificultad, duracion_min, link_video ?? '', url_miniatura ?? null,
                 calorias_estimadas ?? null, edad_minima ?? 60, edad_maxima ?? 100,
                 peso_maximo_recomendado ?? null, activo ?? 1, id]
         );
@@ -1198,7 +1200,7 @@ app.post('/api/admin/videos/eliminar/:id', async (req, res) => {
 app.get('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [rows] = await pool.query(
-            `SELECT id_config, edad_min, edad_max, peso_min, peso_max,
+            `SELECT id_config, nombre_config, edad_min, edad_max, peso_min, peso_max,
                     nivel_dificultad, condiciones_especiales, categoria_recomendada,
                     max_minutos_diarios, dias_semana_recomendados
              FROM configuracion_ejercicios ORDER BY id_config ASC`
@@ -1211,7 +1213,7 @@ app.get('/api/admin/config-ejercicios', async (req, res) => {
 });
 
 app.post('/api/admin/config-ejercicios', async (req, res) => {
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
 
@@ -1222,11 +1224,11 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
     try {
         const [result] = await pool.query(
             `INSERT INTO configuracion_ejercicios
-                (edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+                (nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
                  condiciones_especiales, categoria_recomendada,
                  max_minutos_diarios, dias_semana_recomendados)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3]
@@ -1240,18 +1242,18 @@ app.post('/api/admin/config-ejercicios', async (req, res) => {
 
 app.put('/api/admin/config-ejercicios/:id', async (req, res) => {
     const { id } = req.params;
-    const { edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
+    const { nombre_config, edad_min, edad_max, peso_min, peso_max, nivel_dificultad,
         condiciones_especiales, categoria_recomendada,
         max_minutos_diarios, dias_semana_recomendados } = req.body;
     try {
         const [result] = await pool.query(
             `UPDATE configuracion_ejercicios SET
-                edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
+                nombre_config = ?, edad_min = ?, edad_max = ?, peso_min = ?, peso_max = ?,
                 nivel_dificultad = ?, condiciones_especiales = ?,
                 categoria_recomendada = ?, max_minutos_diarios = ?,
                 dias_semana_recomendados = ?
              WHERE id_config = ?`,
-            [edad_min, edad_max, peso_min ?? null, peso_max ?? null,
+            [nombre_config ?? '', edad_min, edad_max, peso_min ?? null, peso_max ?? null,
                 nivel_dificultad ?? 'baja', condiciones_especiales ?? null,
                 categoria_recomendada ?? null, max_minutos_diarios ?? 30,
                 dias_semana_recomendados ?? 3, id]
